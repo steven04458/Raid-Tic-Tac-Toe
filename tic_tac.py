@@ -1,5 +1,10 @@
 import socket
 
+def valider_mouvement(board, row, col):
+    if 0 <= row < len(board) and 0 <= col < len(board[0]) and board[row][col] == ' ':
+        return True
+    else:
+        return False
 
 def printBoard(board):
     boardSting = ""
@@ -38,7 +43,7 @@ def enlarge_board(board, row, col):
 
 def PlayServe():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 9999))
+    server_socket.bind(('localhost', 12345))
     server_socket.listen(1)
     print("Server is listening...")
     client_socket, client_address = server_socket.accept()
@@ -50,6 +55,12 @@ def PlayServe():
         client_move = client_socket.recv(1024).decode()
 
         row, col = map(int, client_move.split(','))
+        
+        while not valider_mouvement(board, row, col):
+            client_socket.send("INVALID".encode())
+            client_move = client_socket.recv(1024).decode()
+            row, col = map(int, client_move.split(','))
+
         board[row][col] = 'X'
         boardSting = printBoard(board)
         print (boardSting)
@@ -62,6 +73,11 @@ def PlayServe():
 
         print("Server's turn:")
         row, col = map(int, input("Enter your move (row,col): ").split(','))
+    
+        while not valider_mouvement(board, row, col):
+            print("Invalid move. Try again.")
+            row, col = map(int, input("Enter your move (row,col): ").split(','))
+
         board[row][col] = 'O'
 
         if checkWinner(board, 'O'):
@@ -73,6 +89,7 @@ def PlayServe():
         boardSting = printBoard(board)
         print (boardSting)
         client_socket.sendall(boardSting.encode())
+        
 
     client_socket.close()
     server_socket.close()
@@ -80,7 +97,7 @@ def PlayServe():
 
 def PlayClient():
     ip = input("Enter server IP: ")
-    port = 9999
+    port = 12345
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((ip, port))
     starting_player = client_socket.recv(1024).decode()
@@ -93,6 +110,12 @@ def PlayClient():
         print("Updated board:")
         print (updated_board)
 
+        while updated_board == "INVALID":
+            row, col = map(int, input("Enter your move (row,col): ").split(','))
+            client_socket.send(f"{row},{col}".encode())
+            updated_board = client_socket.recv(1024).decode()
+            print("Updated board:")
+            print (updated_board)
 
         print("Waiting for opponent's move...")
         statue = client_socket.recv(1024).decode()
