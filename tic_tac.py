@@ -2,9 +2,12 @@ import socket
 
 
 def printBoard(board):
+    boardSting = ""
     for row in board:
-        print("|".join(row))
-        print("-" * 5)
+        boardSting += "|".join(row)
+        boardSting += "\n"
+        boardSting += "-" * 5 + "\n"
+    return boardSting
 
 
 def checkWinner(board, player):
@@ -40,38 +43,36 @@ def PlayServe():
     print("Server is listening...")
     client_socket, client_address = server_socket.accept()
     print(f"Connection from {client_address} established.")
-
     starting_player = 'X'
     client_socket.send(starting_player.encode())
-
-    board = [[' ' for _ in range(3)] for _ in range(3)]
-    printBoard(board)
 
     while True:
         client_move = client_socket.recv(1024).decode()
 
         row, col = map(int, client_move.split(','))
-        if row >= len(board) or col >= len(board[0]):
-            enlarge_board(board, row, col)
         board[row][col] = 'X'
+        boardSting = printBoard(board)
+        print (boardSting)
+        client_socket.sendall(boardSting.encode())
 
         if checkWinner(board, 'X'):
+            client_socket.sendall('wins'.encode())
             print("Client wins!")
             break
 
-        client_socket.sendall('\n'.join([''.join(row) for row in board]).encode())
         print("Server's turn:")
         row, col = map(int, input("Enter your move (row,col): ").split(','))
-
         board[row][col] = 'O'
 
-        client_socket.sendall('\n'.join([''.join(row) for row in board]).encode())
-
         if checkWinner(board, 'O'):
+            client_socket.sendall('lose'.encode())
             print("Server wins!")
             break
 
-        printBoard(board)
+        client_socket.sendall('null'.encode())
+        boardSting = printBoard(board)
+        print (boardSting)
+        client_socket.sendall(boardSting.encode())
 
     client_socket.close()
     server_socket.close()
@@ -80,41 +81,40 @@ def PlayServe():
 def PlayClient():
     ip = input("Enter server IP: ")
     port = 9999
-
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((ip, port))
-
     starting_player = client_socket.recv(1024).decode()
     print(f"Starting player is: {starting_player}")
 
-    board = [[' ' for _ in range(3)] for _ in range(3)]
-
     while True:
-        printBoard(board)
         row, col = map(int, input("Enter your move (row,col): ").split(','))
         client_socket.send(f"{row},{col}".encode())
-
         updated_board = client_socket.recv(1024).decode()
         print("Updated board:")
-        printBoard(updated_board)
+        print (updated_board)
 
-        if "wins" in updated_board or "draw" in updated_board:
-            break
 
         print("Waiting for opponent's move...")
-        server_move = client_socket.recv(1024).decode()
-        print(server_move)
-
+        statue = client_socket.recv(1024).decode()
+        updated_board = client_socket.recv(1024).decode()
+        print("Updated board:")
+        print (updated_board)
+        
         # Check if game over
-        if "wins" in server_move or "draw" in server_move:
-            printBoard(board)
+        if "wins" == statue:
+            print("Client wins!")
+            break
+        if "lose" == statue:
+            print("Server wins!")
             break
 
     client_socket.close()
 
 
 mode = input("pour entre en mode server taper \"Serve\" sinon juste enter ")
-
+board = [[' ' for _ in range(3)] for _ in range(3)]
+boardSting = printBoard(board)
+print (boardSting)
 if mode == "Serve":
     print("mode server")
     PlayServe()
