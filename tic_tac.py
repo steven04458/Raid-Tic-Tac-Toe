@@ -1,4 +1,55 @@
 import socket
+import random
+
+def PlayServe2(server_socket, client_socket):
+    board = [[' ' for _ in range(3)] for _ in range(3)]
+    boardSting = printBoard(board)
+    print(boardSting)
+    client_socket.sendall(boardSting.encode())
+
+    while True:
+        print("Server's turn:")
+        row, col = map(int, input("Enter your move (col,row): ").split(','))
+    
+        while not valider_mouvement(board, row, col):
+            print("Invalid move. Try again.")
+            row, col = map(int, input("Enter your move (col,row): ").split(','))
+
+        board[row][col] = 'O'
+        boardSting = printBoard(board)
+        print(boardSting)
+        client_socket.sendall(boardSting.encode())
+
+
+        if checkWinner(board, 'O'):
+            client_socket.sendall('lose'.encode())
+            print("Server wins!")
+            break
+        
+        client_move = client_socket.recv(1024).decode()
+
+        row, col = map(int, client_move.split(','))
+        
+        while not valider_mouvement(board, row, col):
+            client_socket.send("INVALID".encode())
+            client_move = client_socket.recv(1024).decode()
+            row, col = map(int, client_move.split(','))
+
+        board[row][col] = 'X'
+
+        if checkWinner(board, 'X'):
+            client_socket.sendall('wins'.encode())
+            print("Client wins!")
+            break
+
+        client_socket.sendall('null'.encode())
+        boardSting = printBoard(board)
+        print (boardSting)
+        client_socket.sendall(boardSting.encode())
+        
+
+    client_socket.close()
+    server_socket.close()
 
 def valider_mouvement(board, row, col):
     if 0 <= row < len(board) and 0 <= col < len(board[0]) and board[row][col] == ' ':
@@ -14,7 +65,6 @@ def printBoard(board):
         boardSting += "-" * 5 + "\n"
     return boardSting
 
-
 def checkWinner(board, player):
     for row in board:
         if all(cell == player for cell in row):
@@ -26,34 +76,31 @@ def checkWinner(board, player):
         return True
     return False
 
-
-def enlarge_board(board, row, col):
-    current_rows = len(board)
-    current_cols = len(board[0])
-
-    # Enlarge rows if needed
-    while row >= len(board):
-        board.append([' ' for _ in range(current_cols)])
-
-    # Enlarge columns if needed
-    for r in board:
-        while col >= len(r):
-            r.append(' ')
-
-
-def PlayServe():
+def launchServe():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('localhost', 12345))
     server_socket.listen(1)
     print("Server is listening...")
     client_socket, client_address = server_socket.accept()
     print(f"Connection from {client_address} established.")
-    starting_player = 'X'
+    first=random.choice(['Serve', 'Client'])
+    if first == "Serve": 
+        print("you start with the 'O'")
+        starting_player = "you play in 2nd with 'X'"
+    else:
+        print("you play in 2nd with 'O'")
+        starting_player = "you start with the 'X'"
     client_socket.send(starting_player.encode())
+    return server_socket, client_socket, first
+
+def PlayServe(server_socket, client_socket):
+    board = [[' ' for _ in range(3)] for _ in range(3)]
+    boardSting = printBoard(board)
+    print(boardSting)
+    client_socket.sendall(boardSting.encode())
 
     while True:
         client_move = client_socket.recv(1024).decode()
-
         row, col = map(int, client_move.split(','))
         
         while not valider_mouvement(board, row, col):
@@ -72,11 +119,11 @@ def PlayServe():
             break
 
         print("Server's turn:")
-        row, col = map(int, input("Enter your move (row,col): ").split(','))
+        row, col = map(int, input("Enter your move (col,row): ").split(','))
     
         while not valider_mouvement(board, row, col):
             print("Invalid move. Try again.")
-            row, col = map(int, input("Enter your move (row,col): ").split(','))
+            row, col = map(int, input("Enter your move (col,row): ").split(','))
 
         board[row][col] = 'O'
 
@@ -94,24 +141,28 @@ def PlayServe():
     client_socket.close()
     server_socket.close()
 
-
-def PlayClient():
+def launchClient():
     ip = input("Enter server IP: ")
     port = 12345
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((ip, port))
     starting_player = client_socket.recv(1024).decode()
     print(f"Starting player is: {starting_player}")
+    return client_socket
+
+def PlayClient(client_socket):
+    boardSting = client_socket.recv(1024).decode()
+    print(boardSting)
 
     while True:
-        row, col = map(int, input("Enter your move (row,col): ").split(','))
+        row, col = map(int, input("Enter your move (col,row): ").split(','))
         client_socket.send(f"{row},{col}".encode())
         updated_board = client_socket.recv(1024).decode()
         print("Updated board:")
         print (updated_board)
 
         while updated_board == "INVALID":
-            row, col = map(int, input("Enter your move (row,col): ").split(','))
+            row, col = map(int, input("Enter your move (col,row): ").split(','))
             client_socket.send(f"{row},{col}".encode())
             updated_board = client_socket.recv(1024).decode()
             print("Updated board:")
@@ -133,14 +184,28 @@ def PlayClient():
 
     client_socket.close()
 
-
 mode = input("pour entre en mode server taper \"Serve\" sinon juste enter ")
-board = [[' ' for _ in range(3)] for _ in range(3)]
-boardSting = printBoard(board)
-print (boardSting)
+first= ""
+client_socket= ""
+server_socket=""
+
 if mode == "Serve":
     print("mode server")
-    PlayServe()
+    server_socket, client_socket,first = launchServe()
 else:
-    print("mode cliant")
-    PlayClient()
+    print("mode client")
+    client_socket=launchClient()
+
+
+if first == "Client":
+    if mode == "Serve":
+        PlayServe(server_socket, client_socket)
+    else:
+        PlayClient(client_socket)
+else: 
+    if mode == "Serve":
+        PlayServe2(server_socket, client_socket)
+    else:
+        PlayClient(client_socket)
+
+
